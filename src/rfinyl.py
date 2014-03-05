@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+##
+# @file rfinyl.py
+# @brief Streaming vinyl player
+# @author Dino Fizzotti
+# @version v1
+# @date 2014-03-05
 import argparse
 import sys
 import random
