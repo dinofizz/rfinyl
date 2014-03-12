@@ -9,6 +9,7 @@ import argparse
 import sys
 import random
 import time
+import RPi.GPIO as GPIO
 from mpd import MPDClient
 
 sys.path.append('../../../bzr/nfcpy'); #edit to point to nfcy directory
@@ -17,6 +18,17 @@ import nfc
 MOPIDY_SERVER_PORT = 6600
 ID_LOWER = 10000
 ID_UPPER = 99999
+
+def testbtn (bleh):
+    print bleh
+
+def play_button (pin):
+    print "handling play button event"
+    print pin 
+
+
+def record_button (pin):
+    print "handling record button event"
 
 
 def error(error):
@@ -33,10 +45,11 @@ def play(mpd_client, rfinyl_id):
         playlists = mpd_client.listplaylists()
         for playlist in playlists:
             spotify_playlist = playlist['playlist'].decode('utf-8')
-            #print spotify_playlist
+            print spotify_playlist
             if rfinyl_id in spotify_playlist:
                 mpd_client.load(rfinyl_id)
                 mpd_client.play()
+                mpd_client.close()
                 return
 
         error('Could not find playlist %s' % rfinyl_id)
@@ -56,6 +69,8 @@ def read_tag(mpd_client, clf):
     except AttributeError:
         error("read timeout")
     else:
+        print "Found tag", rfinyl_id
+        print mpd_client
         play(mpd_client, rfinyl_id)
 
 
@@ -103,6 +118,7 @@ if __name__=="__main__":
     group.add_argument('-r', '--read', help='Read a tag', action='store_true', required=False)
     group.add_argument('-n', '--new', help='Write a new random ID to a tag', action='store_true', required=False)
     group.add_argument('-s', '--stop', help='Stop mopidy playback', action='store_true', required=False)
+    group.add_argument('-d', '--daemon', help='Run rfinyl as daemon', action='store_true', required=False)
     args = parser.parse_args()
 
     mpd_client = MPDClient()
@@ -123,3 +139,23 @@ if __name__=="__main__":
         write_tag(clf, args.write)
     elif args.stop:
         stop_playback(mpd_client)
+    elif args.daemon:
+        GPIO.setmode(GPIO.BCM)
+
+        GPIO.setup(22,GPIO.IN)
+        GPIO.setup(23,GPIO.IN)
+
+        GPIO.add_event_detect(22,GPIO.FALLING, callback=lambda x: read_tag(mpd_client, clf), bouncetime=300)
+        #GPIO.add_event_callback(22, play_button, 300)
+        #GPIO.add_event_callback(22, callback=play_button, 300)
+
+        GPIO.add_event_detect(23,GPIO.FALLING)
+        GPIO.add_event_callback(23, record_button, 300)
+
+
+        while True:
+            time.sleep(1)
+            print "hello world"
+
+        GPIO.cleanup()
+
