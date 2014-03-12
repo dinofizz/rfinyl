@@ -13,24 +13,33 @@ from mpd import MPDClient
 
 sys.path.append('../../../bzr/nfcpy'); #edit to point to nfcy directory
 import nfc
-            
+
+MOPIDY_SERVER_PORT = 6600
+ID_LOWER = 10000
+ID_UPPER = 99999
+
 
 def error(error):
     print error
 
 
 def play(mpd_client, rfinyl_id):
-    mpd_client.connect("localhost", 6600)
-    playlists = mpd_client.listplaylists()
-    for playlist in playlists:
-        spotify_playlist = playlist['playlist'].decode('utf-8')
-        #print spotify_playlist
-        if rfinyl_id in spotify_playlist:
-            mpd_client.load(rfinyl_id)
-            mpd_client.play()
-            return
 
-    error('Could not find playlist %s' % rfinyl_id)
+    try:
+        mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
+    except:
+        error('Error connecting to mopidy server')
+    else:
+        playlists = mpd_client.listplaylists()
+        for playlist in playlists:
+            spotify_playlist = playlist['playlist'].decode('utf-8')
+            #print spotify_playlist
+            if rfinyl_id in spotify_playlist:
+                mpd_client.load(rfinyl_id)
+                mpd_client.play()
+                return
+
+        error('Could not find playlist %s' % rfinyl_id)
 
 
 def read_tag(mpd_client, clf):
@@ -51,12 +60,11 @@ def read_tag(mpd_client, clf):
 
 
 def stop_playback(mpd_client):
-    mpd_client.connect("localhost", 6600)
+    mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
     mpd_client.clear()
 
 
 def write_tag(clf, write_id=None):
-    print write_id
     playlist_file = 'current_playlists'
     
     with open(playlist_file) as f:
@@ -76,8 +84,8 @@ def write_tag(clf, write_id=None):
         error("read timeout")
     else:
         if write_id is None:
-            for attempt in range(10000, 100000):
-                new_id = random.randint(10000,99999)
+            for attempt in range(ID_LOWER, ID_UPPER + 1):
+                new_id = random.randint(ID_LOWER,ID_UPPER)
                 if new_id not in current_playlists:
                     read_result.ndef.message = nfc.ndef.Message(nfc.ndef.TextRecord(language="en", text=new_id))
                     with open(playlist_file, 'a') as f:
@@ -91,16 +99,21 @@ def write_tag(clf, write_id=None):
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='rfinyl: streaming vinyl player')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-w','--write', help='Text to write to tage',required=False)
-    group.add_argument('-r', '--read', action='store_true', required=False)
-    group.add_argument('-n', '--new', action='store_true', required=False)
-    group.add_argument('-s', '--stop', action='store_true', required=False)
+    group.add_argument('-w','--write', help='Write the provided ID to a tag',required=False)
+    group.add_argument('-r', '--read', help='Read a tag', action='store_true', required=False)
+    group.add_argument('-n', '--new', help='Write a new random ID to a tag', action='store_true', required=False)
+    group.add_argument('-s', '--stop', help='Stop mopidy playback', action='store_true', required=False)
     args = parser.parse_args()
 
     mpd_client = MPDClient()
     mpd_client.timeout = 10;
     mpd_client.idletimeout = None
-    clf = nfc.ContactlessFrontend('tty:USB0:pn53x')
+    
+    try:
+        clf = nfc.ContactlessFrontend('tty:USB0:pn53x')
+    except IOError:
+        error('RFID open device error')
+        exit(1)
 
     if args.read:
         read_tag(mpd_client, clf)
