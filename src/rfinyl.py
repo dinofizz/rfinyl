@@ -35,8 +35,10 @@ def error(error):
     print error
 
 
-def play(mpd_client, rfinyl_id):
-
+def play(rfinyl_id):
+    mpd_client = MPDClient()
+    mpd_client.timeout = 10;
+    mpd_client.idletimeout = None
     try:
         mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
     except:
@@ -55,7 +57,7 @@ def play(mpd_client, rfinyl_id):
         error('Could not find playlist %s' % rfinyl_id)
 
 
-def read_tag(mpd_client, clf):
+def read_tag(clf):
     after5s = lambda: time.time() - started > 5
     started = time.time()
 
@@ -70,13 +72,24 @@ def read_tag(mpd_client, clf):
         error("read timeout")
     else:
         print "Found tag", rfinyl_id
-        print mpd_client
-        play(mpd_client, rfinyl_id)
+        play(rfinyl_id)
 
 
-def stop_playback(mpd_client):
-    mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
-    mpd_client.clear()
+def stop_playback():
+    # Tried to create this object in main and pass it around with the button callbacks
+    # but had connection problems ("broken pipe"), so this is why I am creating and
+    # closing on each call
+    mpd_client = MPDClient()
+    mpd_client.timeout = 10;
+    mpd_client.idletimeout = None
+    
+    try:
+        mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
+    except:
+        error('Error connecting to mopidy server')
+    else:
+        mpd_client.clear()
+        mpd_client.close()
 
 
 def write_tag(clf, write_id=None):
@@ -120,10 +133,6 @@ if __name__=="__main__":
     group.add_argument('-s', '--stop', help='Stop mopidy playback', action='store_true', required=False)
     group.add_argument('-d', '--daemon', help='Run rfinyl as daemon', action='store_true', required=False)
     args = parser.parse_args()
-
-    mpd_client = MPDClient()
-    mpd_client.timeout = 10;
-    mpd_client.idletimeout = None
     
     try:
         clf = nfc.ContactlessFrontend('tty:USB0:pn53x')
@@ -132,30 +141,23 @@ if __name__=="__main__":
         exit(1)
 
     if args.read:
-        read_tag(mpd_client, clf)
+        read_tag(clf)
     elif args.new:
         write_tag(clf)
     elif args.write:
         write_tag(clf, args.write)
     elif args.stop:
-        stop_playback(mpd_client)
+        stop_playback()
     elif args.daemon:
         GPIO.setmode(GPIO.BCM)
 
         GPIO.setup(22,GPIO.IN)
         GPIO.setup(23,GPIO.IN)
 
-        GPIO.add_event_detect(22,GPIO.FALLING, callback=lambda x: read_tag(mpd_client, clf), bouncetime=300)
-        #GPIO.add_event_callback(22, play_button, 300)
-        #GPIO.add_event_callback(22, callback=play_button, 300)
-
-        GPIO.add_event_detect(23,GPIO.FALLING)
-        GPIO.add_event_callback(23, record_button, 300)
-
+        GPIO.add_event_detect(22,GPIO.FALLING, callback=lambda x: read_tag(clf), bouncetime=500)
+        GPIO.add_event_detect(23,GPIO.FALLING, callback=lambda x: stop_playback(), bouncetime=500)
 
         while True:
             time.sleep(1)
-            print "hello world"
 
         GPIO.cleanup()
-
