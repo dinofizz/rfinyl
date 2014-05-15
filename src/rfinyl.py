@@ -20,20 +20,31 @@ MOPIDY_SERVER_PORT = 6600
 ID_LOWER = 10000
 ID_UPPER = 99999
 
-def testbtn (bleh):
-    print bleh
+ERROR_CODES = {
+    1 : 'Error connecting to mopidy server', 
+    2 : 'Tag read error',
+    3 : 'Tag read timeout',
+    4 : 'Could not find playlist',
+    5 : 'Playlist limit reached',
+    6 : 'Error opening tag reader',
+    }
 
-def play_button (pin):
-    print "handling play button event"
-    print pin 
-
-
-def record_button (pin):
-    print "handling record button event"
-
-
-def error(error):
-    print error
+def error(error_code):
+    print ERROR_CODES[error_code]
+    if error_code == 1:
+        pass
+    elif error_code == 2:
+        pass
+    elif error_code == 3:
+        pass
+    elif error_code == 4:
+        pass
+    elif error_code == 5:
+        pass
+    elif error_code == 6:
+        pass
+    else:
+        print "Unknown error code"
 
 
 def play(rfinyl_id):
@@ -43,15 +54,20 @@ def play(rfinyl_id):
     try:
         mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
     except:
-        error('Error connecting to mopidy server')
+        error('Error connecting to mopidy server.')
     else:
+        print "Connected to mopidy server."
         playlists = mpd_client.listplaylists()
         for playlist in playlists:
             spotify_playlist = playlist['playlist'].decode('utf-8')
             print spotify_playlist
             if rfinyl_id in spotify_playlist:
+                print "Found!"
+                print "Loading playlist..."
                 mpd_client.load(rfinyl_id)
+                print "Playing playlist..."
                 mpd_client.play()
+                print "Closing client."
                 mpd_client.close()
                 return
 
@@ -64,6 +80,7 @@ def read_tag(clf):
 
     read_result = clf.connect(rdwr={'on-connect': None}, terminate=after5s)
 
+    print "Found tag!"
     try:
         rfinyl_id = nfc.ndef.TextRecord(read_result.ndef.message[0]).text.decode('utf-8') if read_result.ndef \
                 else error("read error")
@@ -87,9 +104,12 @@ def stop_playback():
     try:
         mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
     except:
-        error('Error connecting to mopidy server')
+        error('Error connecting to mopidy server.')
     else:
+        print "Connected to mopidy server."
+        print "Clearing playlist (stopping audio)."
         mpd_client.clear()
+        print "Closing client."
         mpd_client.close()
 
 
@@ -113,15 +133,20 @@ def write_tag(clf, write_id=None):
         error("read timeout")
     else:
         if write_id is None:
+            print "Generating random ID"
             for attempt in range(ID_LOWER, ID_UPPER + 1):
                 new_id = random.randint(ID_LOWER,ID_UPPER)
+                print "Generated ID: ", str(new_id)
                 if new_id not in current_playlists:
                     read_result.ndef.message = nfc.ndef.Message(nfc.ndef.TextRecord(language="en", text=new_id))
                     with open(playlist_filename, 'a') as playlist_file:
+                        print "Writing generated ID to file"
                         playlist_file.write(str(new_id))
                     return
             error('playlist limit reached')
         else:
+            print "ID = ", write_id
+            print "Writing ID to tag."
             read_result.ndef.message = nfc.ndef.Message(nfc.ndef.TextRecord(language="en", text=write_id))
 
 
@@ -150,15 +175,17 @@ if __name__=="__main__":
     elif args.stop:
         stop_playback()
     elif args.daemon:
+        print "Setting up GPIO..."
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(22,GPIO.IN)
         GPIO.setup(23,GPIO.IN)
         GPIO.add_event_detect(22,GPIO.FALLING, callback=lambda x: read_tag(clf), bouncetime=500)
         GPIO.add_event_detect(23,GPIO.FALLING, callback=lambda x: stop_playback(), bouncetime=500)
+        print "Entering loop. Ctrl+c to exit."
         try:
             while True:
                 time.sleep(1)
-        except KeyboardInterrupt: #use signal handler defined within main scope to close everything
-            print "Closing"
+        except KeyboardInterrupt: #TODO: use signal handler defined within main scope to close everything
+            print "Closing, cleaning up GPIO."
             GPIO.cleanup()
 
