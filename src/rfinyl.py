@@ -9,6 +9,7 @@ import argparse
 import sys
 import random
 import time
+import sys
 import RPi.GPIO as GPIO
 from mpd import MPDClient
 
@@ -93,10 +94,10 @@ def stop_playback():
 
 
 def write_tag(clf, write_id=None):
-    playlist_file = 'current_playlists'
+    playlist_filename = 'current_playlists'
     
-    with open(playlist_file) as f:
-        current_playlists = f.readlines()
+    with open(playlist_filename) as playlist_file:
+        current_playlists = playlist_file.readlines()
 
     after5s = lambda: time.time() - started > 5
     started = time.time()
@@ -116,8 +117,8 @@ def write_tag(clf, write_id=None):
                 new_id = random.randint(ID_LOWER,ID_UPPER)
                 if new_id not in current_playlists:
                     read_result.ndef.message = nfc.ndef.Message(nfc.ndef.TextRecord(language="en", text=new_id))
-                    with open(playlist_file, 'a') as f:
-                        f.write(str(new_id))
+                    with open(playlist_filename, 'a') as playlist_file:
+                        playlist_file.write(str(new_id))
                     return
             error('playlist limit reached')
         else:
@@ -127,7 +128,7 @@ def write_tag(clf, write_id=None):
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='rfinyl: streaming vinyl player')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-w','--write', help='Write the provided ID to a tag',required=False)
+    group.add_argument('-w', '--write', help='Write the provided ID to a tag',required=False)
     group.add_argument('-r', '--read', help='Read a tag', action='store_true', required=False)
     group.add_argument('-n', '--new', help='Write a new random ID to a tag', action='store_true', required=False)
     group.add_argument('-s', '--stop', help='Stop mopidy playback', action='store_true', required=False)
@@ -150,14 +151,14 @@ if __name__=="__main__":
         stop_playback()
     elif args.daemon:
         GPIO.setmode(GPIO.BCM)
-
         GPIO.setup(22,GPIO.IN)
         GPIO.setup(23,GPIO.IN)
-
         GPIO.add_event_detect(22,GPIO.FALLING, callback=lambda x: read_tag(clf), bouncetime=500)
         GPIO.add_event_detect(23,GPIO.FALLING, callback=lambda x: stop_playback(), bouncetime=500)
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt: #use signal handler defined within main scope to close everything
+            print "Closing"
+            GPIO.cleanup()
 
-        while True:
-            time.sleep(1)
-
-        GPIO.cleanup()
