@@ -51,12 +51,14 @@ def play(rfinyl_id):
     mpd_client = MPDClient()
     mpd_client.timeout = 10;
     mpd_client.idletimeout = None
+    
     try:
         mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
     except:
-        error('Error connecting to mopidy server.')
+        error(1)
     else:
         print "Connected to mopidy server."
+        print "Searching for playlist %s" % rfinyl_id
         playlists = mpd_client.listplaylists()
         for playlist in playlists:
             spotify_playlist = playlist['playlist'].decode('utf-8')
@@ -71,7 +73,7 @@ def play(rfinyl_id):
                 mpd_client.close()
                 return
 
-        error('Could not find playlist %s' % rfinyl_id)
+        error(4)
 
 
 def read_tag(clf):
@@ -83,11 +85,11 @@ def read_tag(clf):
     print "Found tag!"
     try:
         rfinyl_id = nfc.ndef.TextRecord(read_result.ndef.message[0]).text.decode('utf-8') if read_result.ndef \
-                else error("read error")
+                else error(2)
     except ValueError:
-        error("read error")
+        error(2)
     except AttributeError:
-        error("read timeout")
+        error(3)
     else:
         print "Found tag", rfinyl_id
         play(rfinyl_id)
@@ -104,7 +106,7 @@ def stop_playback():
     try:
         mpd_client.connect("localhost", MOPIDY_SERVER_PORT)
     except:
-        error('Error connecting to mopidy server.')
+        error(1)
     else:
         print "Connected to mopidy server."
         print "Clearing playlist (stopping audio)."
@@ -126,11 +128,11 @@ def write_tag(clf, write_id=None):
 
     try:
         rfinyl_id = nfc.ndef.TextRecord(read_result.ndef.message[0]).text.decode('utf-8') if read_result.ndef \
-                else error("read error")
+                else error(2)
     except ValueError:
-        error("read error")
+        error(2)
     except AttributeError:
-        error("read timeout")
+        error(3)
     else:
         if write_id is None:
             print "Generating random ID"
@@ -143,7 +145,7 @@ def write_tag(clf, write_id=None):
                         print "Writing generated ID to file"
                         playlist_file.write(str(new_id))
                     return
-            error('playlist limit reached')
+            error(5)
         else:
             print "ID = ", write_id
             print "Writing ID to tag."
@@ -163,7 +165,7 @@ if __name__=="__main__":
     try:
         clf = nfc.ContactlessFrontend('tty:USB0:pn53x')
     except IOError:
-        error('RFID open device error')
+        error(6)
         exit(1)
 
     if args.read:
@@ -179,8 +181,10 @@ if __name__=="__main__":
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(22,GPIO.IN)
         GPIO.setup(23,GPIO.IN)
-        GPIO.add_event_detect(22,GPIO.FALLING, callback=lambda x: read_tag(clf), bouncetime=500)
-        GPIO.add_event_detect(23,GPIO.FALLING, callback=lambda x: stop_playback(), bouncetime=500)
+        GPIO.setup(24,GPIO.IN)
+        GPIO.add_event_detect(22,GPIO.FALLING, callback=lambda x: read_tag(clf), bouncetime=1000)
+        GPIO.add_event_detect(23,GPIO.FALLING, callback=lambda x: stop_playback(), bouncetime=1000)
+        GPIO.add_event_detect(24,GPIO.FALLING, callback=lambda x: write_tag(clf), bouncetime=1000)
         print "Entering loop. Ctrl+c to exit."
         try:
             while True:
