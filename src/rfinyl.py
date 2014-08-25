@@ -48,6 +48,8 @@ def error(error_code):
 
 
 def play(rfinyl_id):
+    print "play"
+    stop_playback()
     mpd_client = MPDClient()
     mpd_client.timeout = 10;
     mpd_client.idletimeout = None
@@ -65,6 +67,7 @@ def play(rfinyl_id):
             print spotify_playlist
             if rfinyl_id in spotify_playlist:
                 print "Found!"
+                mpd_client.add("local:track:needle1.wav")
                 print "Loading playlist..."
                 mpd_client.load(rfinyl_id)
                 print "Playing playlist..."
@@ -77,6 +80,7 @@ def play(rfinyl_id):
 
 
 def read_tag(clf):
+    print "read_tag"
     after5s = lambda: time.time() - started > 5
     started = time.time()
 
@@ -99,6 +103,8 @@ def stop_playback():
     # Tried to create this object in main and pass it around with the button callbacks
     # but had connection problems ("broken pipe"), so this is why I am creating and
     # closing on each call
+
+    print "stop_playback"
     mpd_client = MPDClient()
     mpd_client.timeout = 10;
     mpd_client.idletimeout = None
@@ -116,6 +122,7 @@ def stop_playback():
 
 
 def write_tag(clf, write_id=None):
+    print "write_tag"
     playlist_filename = 'current_playlists'
     
     with open(playlist_filename) as playlist_file:
@@ -163,6 +170,7 @@ if __name__=="__main__":
     args = parser.parse_args()
     
     try:
+        #clf = nfc.ContactlessFrontend('tty:AMA0:pn53x')
         clf = nfc.ContactlessFrontend('tty:USB0:pn53x')
     except IOError:
         error(6)
